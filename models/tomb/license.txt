@@ -1,0 +1,11 @@
+Model Information:
+* title:	Smith's Tomb on St Mary's at Finchley churchyard
+* source:	https://sketchfab.com/3d-models/smiths-tomb-on-st-marys-at-finchley-churchyard-22bfb76eec484088beafdcab54b9fe6f
+* author:	Mikhail Volkov (https://sketchfab.com/mgv)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Smith's Tomb on St Mary's at Finchley churchyard" (https://sketchfab.com/3d-models/smiths-tomb-on-st-marys-at-finchley-churchyard-22bfb76eec484088beafdcab54b9fe6f) by Mikhail Volkov (https://sketchfab.com/mgv) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
