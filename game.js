@@ -19,7 +19,7 @@ let walkTime = 0;
 // [GRID] Colisão otimizada
 const CELL_SIZE = 10;
 const QUADRANT_SIZE = 25;
-const MAX_QUAD_SIZE = 19;
+const MAX_QUAD_INDEX = 19;
 const obstacleGrid = new Map();
 function getCellKey(x, z) {
   const cellX = Math.floor(x / CELL_SIZE);
@@ -32,6 +32,20 @@ function addObstacle(obj, x, z) {
     obstacleGrid.set(key, []);
   }
   obstacleGrid.get(key).push(obj);
+}
+
+function removeObstacle(obj, x, z) {
+  const key = getCellKey(x, z);
+  if (obstacleGrid.has(key)) {
+    const cell = obstacleGrid.get(key);
+    const index = cell.indexOf(obj);
+    if (index !== -1) {
+      cell.splice(index, 1);
+      if (cell.length === 0) {
+        obstacleGrid.delete(key);
+      }
+    }
+  }
 }
 
 // ========== CÂMERA ==========
@@ -143,7 +157,7 @@ function getSurroundingQuadrants(x, z) {
     for (let dz = -1; dz <= 1; dz++) {
       const qx = centerX + dx;
       const qz = centerZ + dz;
-      if (qx >= 0 && qx <= MAX_QUAD_SIZE && qz >= 0 && qz <= MAX_QUAD_SIZE) {
+      if (qx >= 0 && qx <= MAX_QUAD_INDEX && qz >= 0 && qz <= MAX_QUAD_INDEX) {
         keys.push(`${qx},${qz}`);
       }
     }
@@ -196,7 +210,6 @@ function createForest() {
     }
   }
 }
-
 
 function createFence(x, z, rotation = 0) {
   const fenceGeometry = new THREE.PlaneGeometry(4, 4);
@@ -418,7 +431,10 @@ function updateVisibleChunks() {
     if (!newQuadrants.has(key)) {
       const trees = forestChunks.get(key);
       if (trees) {
-        trees.forEach(tree => scene.remove(tree));
+        trees.forEach(tree => {
+          scene.remove(tree);
+          removeObstacle(tree, tree.position.x, tree.position.z);
+        });
       }
     }
   });
