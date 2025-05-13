@@ -81,7 +81,7 @@ const fenceMaterial = new THREE.MeshStandardMaterial({
 
 // ========== CHÃO ==========
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(250, 250),
+  new THREE.PlaneGeometry(500, 500),
   new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 0.9 })
 );
 ground.rotation.x = -Math.PI / 2;
@@ -99,7 +99,7 @@ function createSeededRandom(seed) {
 
 const leavesMaterial = new THREE.MeshLambertMaterial({ color: 0x226622 });
 
-function createTree(x, z) {
+/*function createTree(x, z) {
   const trunkMaterial = new THREE.MeshLambertMaterial({ map: trunkTexture });
   const trunkHeight = Math.random() * 10 + 10;
   const trunkRadius = Math.random() * 0.4 + 0.4;
@@ -119,25 +119,65 @@ function createTree(x, z) {
   scene.add(trunk);
   scene.add(leaves);
   addObstacle(trunk, x, z);
-}
+}*/
 
 const seed_floresta = Date.now();  // Gera uma floresta nova toda vez
 const rng = createSeededRandom(seed_floresta);
 
+const forestChunks = new Map();
+const QUADRANT_SIZE = 100;
+
+function getQuadrantKey(x, z) {
+  const qx = Math.floor((x + 250) / QUADRANT_SIZE); // +250 para transformar -250~250 em 0~500
+  const qz = Math.floor((z + 250) / QUADRANT_SIZE);
+  return `${qx},${qz}`; // exemplo: "2,3"
+}
+
+function createTreeObject(x, z) {
+  const trunkMaterial = new THREE.MeshLambertMaterial({ map: trunkTexture });
+  const trunkHeight = Math.random() * 10 + 10;
+  const trunkRadius = Math.random() * 0.4 + 0.4;
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(trunkRadius, trunkRadius, trunkHeight, 8),
+    trunkMaterial
+  );
+  trunk.position.y = trunkHeight / 2;
+
+  const leaves = new THREE.Mesh(
+    new THREE.ConeGeometry(1.5, 3, 6),
+    leavesMaterial
+  );
+  leaves.position.y = trunkHeight + 1;
+
+  const treeGroup = new THREE.Group();
+  treeGroup.add(trunk);
+  treeGroup.add(leaves);
+  treeGroup.position.set(x, 0, z);
+  treeGroup.userData.isTree = true;
+
+  return treeGroup;
+}
+
 function createForest() {
   const spacing = 5;
-  const size = 100;
+  const size = 250;
 
   for (let x = -size; x < size; x += spacing) {
     for (let z = -size; z < size; z += spacing) {
       const distanceFromCenter = Math.sqrt(x * x + z * z);
       const isPath = distanceFromCenter < 12;
+
       if (!isPath && rng() > 0.3) {
-        createTree(x + rng() * 2, z + rng() * 2);
+        const tree = createTreeObject(x + rng() * 2, z + rng() * 2);
+        const quadrant = getQuadrantKey(tree.position.x, tree.position.z);
+        if (!forestChunks.has(quadrant)) forestChunks.set(quadrant, []);
+        forestChunks.get(quadrant).push(tree);
       }
     }
   }
 }
+
 
 function createFence(x, z, rotation = 0) {
   const fenceGeometry = new THREE.PlaneGeometry(4, 4);
@@ -150,8 +190,8 @@ function createFence(x, z, rotation = 0) {
 
 function createBorderFences() {
   const spacing = 3.75;
-  const borderMin = -100;
-  const borderMax = 100;
+  const borderMin = -250;
+  const borderMax = 250;
 
   for (let x = borderMin; x <= borderMax; x += spacing) {
     createFence(x, borderMin, 0);
@@ -348,9 +388,36 @@ function startFlicker() {
 }
 
 // ========== ANIMAÇÃO ==========
+
+let currentQuadrant = null;
+
+function updateVisibleChunks() {
+  const quad = getQuadrantKey(cameraHolder.position.x, cameraHolder.position.z);
+  if (quad === currentQuadrant) return;
+
+  // Remove árvores do quadrante anterior
+  if (currentQuadrant && forestChunks.has(currentQuadrant)) {
+    forestChunks.get(currentQuadrant).forEach(tree => {
+      scene.remove(tree);
+    });
+  }
+
+  // Adiciona árvores do novo quadrante
+  if (forestChunks.has(quad)) {
+    forestChunks.get(quad).forEach(tree => {
+      scene.add(tree);
+      addObstacle(tree, tree.position.x, tree.position.z); // manter colisão
+    });
+  }
+
+  currentQuadrant = quad;
+}
+
 function animate() {
   if (gamePaused) return;
   pauseAnimationFrame = requestAnimationFrame(animate);
+
+  updateVisibleChunks(); // ← ESSA LINHA É ESSENCIAL
 
   const speed = 0.15;
   const rotY = cameraHolder.rotation.y;
@@ -399,7 +466,48 @@ function animate() {
     }
   }
 
-  if (!collision) cameraHolder.position.copy(nextPosition);
+  if (!collision) {
+  cameraHolder.position.copy(nextPosition);
+} else {
+  // Testa movimento apenas no eixo X
+  const testX = new THREE.Vector3(nextPosition.x, cameraHolder.position.y, cameraHolder.position.z);
+  const boxX = new THREE.Box3().setFromCenterAndSize(
+    testX.clone().add(new THREE.Vector3(0, 1.5, 0)),
+    new THREE.Vector3(1, 3, 1)
+  );
+
+  let collidesX = false;
+  for (const obj of nearbyObstacles) {
+    const objBox = new THREE.Box3().setFromObject(obj);
+    if (boxX.intersectsBox(objBox)) {
+      collidesX = true;
+      break;
+    }
+  }
+
+  // Testa movimento apenas no eixo Z
+  const testZ = new THREE.Vector3(cameraHolder.position.x, cameraHolder.position.y, nextPosition.z);
+  const boxZ = new THREE.Box3().setFromCenterAndSize(
+    testZ.clone().add(new THREE.Vector3(0, 1.5, 0)),
+    new THREE.Vector3(1, 3, 1)
+  );
+
+  let collidesZ = false;
+  for (const obj of nearbyObstacles) {
+    const objBox = new THREE.Box3().setFromObject(obj);
+    if (boxZ.intersectsBox(objBox)) {
+      collidesZ = true;
+      break;
+    }
+  }
+
+  if (!collidesX) {
+    cameraHolder.position.x = nextPosition.x;
+  }
+  if (!collidesZ) {
+    cameraHolder.position.z = nextPosition.z;
+  }
+}
 
   const isMoving = controls.forward || controls.backward || controls.left || controls.right;
   camera.position.y = isMoving ? 3 + Math.sin(walkTime * 2) * 0.1 : 3;
@@ -425,14 +533,16 @@ function drawMinimap() {
   ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "white";
+  ctx.lineWidth = 2;
   ctx.strokeRect(0, 0, canvas.width, canvas.height);
 
-  const scale = canvas.width / 200;
+  const mapSize = 500;
+  const scale = canvas.width / mapSize;
   const x = cameraHolder.position.x;
   const z = cameraHolder.position.z;
 
-  const px = (x + 100) * scale;
-  const py = (z + 100) * scale;
+  const px = (x + mapSize/2) * scale;
+  const py = (z + mapSize/2) * scale;
 
   ctx.fillStyle = "red";
   ctx.beginPath();
