@@ -14,11 +14,27 @@ let gamePaused = false;
 let pauseAnimationFrame = null;
 let batteryInterval = null;
 let firstStart = true;
+let walkTime = 0;
+
+// [GRID] Colisão otimizada
+const CELL_SIZE = 10;
+const obstacleGrid = new Map();
+function getCellKey(x, z) {
+  const cellX = Math.floor(x / CELL_SIZE);
+  const cellZ = Math.floor(z / CELL_SIZE);
+  return `${cellX},${cellZ}`;
+}
+function addObstacle(obj, x, z) {
+  const key = getCellKey(x, z);
+  if (!obstacleGrid.has(key)) {
+    obstacleGrid.set(key, []);
+  }
+  obstacleGrid.get(key).push(obj);
+}
 
 // ========== CÂMERA ==========
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.y = 3;
-let walkTime = 0;
 
 const cameraHolder = new THREE.Object3D();
 cameraHolder.add(camera);
@@ -102,6 +118,7 @@ function createTree(x, z) {
 
   scene.add(trunk);
   scene.add(leaves);
+  addObstacle(trunk, x, z);
 }
 
 const seed_floresta = Date.now();  // Gera uma floresta nova toda vez
@@ -128,6 +145,7 @@ function createFence(x, z, rotation = 0) {
   fence.position.set(x, 1, z);
   fence.rotation.y = rotation;
   scene.add(fence);
+  addObstacle(fence, x, z);
 }
 
 function createBorderFences() {
@@ -336,42 +354,65 @@ function animate() {
 
   const speed = 0.15;
   const rotY = cameraHolder.rotation.y;
+  const nextPosition = cameraHolder.position.clone();
 
   if (controls.forward) {
-    cameraHolder.position.z -= speed * Math.cos(rotY);
-    cameraHolder.position.x -= speed * Math.sin(rotY);
+    nextPosition.z -= speed * Math.cos(rotY);
+    nextPosition.x -= speed * Math.sin(rotY);
   }
   if (controls.backward) {
-    cameraHolder.position.z += speed * Math.cos(rotY);
-    cameraHolder.position.x += speed * Math.sin(rotY);
+    nextPosition.z += speed * Math.cos(rotY);
+    nextPosition.x += speed * Math.sin(rotY);
   }
   if (controls.left) {
-    cameraHolder.position.x -= speed * Math.cos(rotY);
-    cameraHolder.position.z += speed * Math.sin(rotY);
+    nextPosition.x -= speed * Math.cos(rotY);
+    nextPosition.z += speed * Math.sin(rotY);
   }
   if (controls.right) {
-    cameraHolder.position.x += speed * Math.cos(rotY);
-    cameraHolder.position.z -= speed * Math.sin(rotY);
+    nextPosition.x += speed * Math.cos(rotY);
+    nextPosition.z -= speed * Math.sin(rotY);
   }
+
+  const playerBox = new THREE.Box3().setFromCenterAndSize(
+    nextPosition.clone().add(new THREE.Vector3(0, 1.5, 0)),
+    new THREE.Vector3(1, 3, 1)
+  );
+
+  let collision = false;
+  const cellX = Math.floor(nextPosition.x / CELL_SIZE);
+  const cellZ = Math.floor(nextPosition.z / CELL_SIZE);
+  const nearbyObstacles = [];
+
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      const key = `${cellX + dx},${cellZ + dz}`;
+      const cell = obstacleGrid.get(key);
+      if (cell) nearbyObstacles.push(...cell);
+    }
+  }
+
+  for (const obj of nearbyObstacles) {
+    const objBox = new THREE.Box3().setFromObject(obj);
+    if (playerBox.intersectsBox(objBox)) {
+      collision = true;
+      break;
+    }
+  }
+
+  if (!collision) cameraHolder.position.copy(nextPosition);
 
   const isMoving = controls.forward || controls.backward || controls.left || controls.right;
   camera.position.y = isMoving ? 3 + Math.sin(walkTime * 2) * 0.1 : 3;
-  if (isMoving) walkTime += 0.1; else walkTime = 0;
+  walkTime = isMoving ? walkTime + 0.1 : 0;
 
-  const flashlightOffset = new THREE.Vector3(0, 2.2, 0);
-  flashlight.position.copy(cameraHolder.position.clone().add(flashlightOffset));
-
+  flashlight.position.copy(cameraHolder.position.clone().add(new THREE.Vector3(0, 2.2, 0)));
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
   direction.y -= 0.1;
-  direction.normalize();
-
-  flashlight.target.position.copy(flashlight.position.clone().add(direction));
+  flashlight.target.position.copy(flashlight.position.clone().add(direction.normalize()));
   flashlight.target.updateMatrixWorld();
 
-  // flashlightHelper.update(); // ← Apenas para desenvolvimento
   renderer.render(scene, camera);
-
   drawMinimap();
 }
 
