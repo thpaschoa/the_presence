@@ -18,6 +18,8 @@ let walkTime = 0;
 
 // [GRID] Colisão otimizada
 const CELL_SIZE = 10;
+const QUADRANT_SIZE = 25;
+const MAX_QUAD_SIZE = 19;
 const obstacleGrid = new Map();
 function getCellKey(x, z) {
   const cellX = Math.floor(x / CELL_SIZE);
@@ -125,12 +127,29 @@ const seed_floresta = Date.now();  // Gera uma floresta nova toda vez
 const rng = createSeededRandom(seed_floresta);
 
 const forestChunks = new Map();
-const QUADRANT_SIZE = 100;
 
 function getQuadrantKey(x, z) {
   const qx = Math.floor((x + 250) / QUADRANT_SIZE); // +250 para transformar -250~250 em 0~500
   const qz = Math.floor((z + 250) / QUADRANT_SIZE);
   return `${qx},${qz}`; // exemplo: "2,3"
+}
+
+function getSurroundingQuadrants(x, z) {
+  const centerX = Math.floor((x + 250) / QUADRANT_SIZE);
+  const centerZ = Math.floor((z + 250) / QUADRANT_SIZE);
+  const keys = [];
+
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      const qx = centerX + dx;
+      const qz = centerZ + dz;
+      if (qx >= 0 && qx <= MAX_QUAD_SIZE && qz >= 0 && qz <= MAX_QUAD_SIZE) {
+        keys.push(`${qx},${qz}`);
+      }
+    }
+  }
+
+  return keys;
 }
 
 function createTreeObject(x, z) {
@@ -389,28 +408,35 @@ function startFlicker() {
 
 // ========== ANIMAÇÃO ==========
 
-let currentQuadrant = null;
+let currentQuadrants = new Set();
 
 function updateVisibleChunks() {
-  const quad = getQuadrantKey(cameraHolder.position.x, cameraHolder.position.z);
-  if (quad === currentQuadrant) return;
+  const newQuadrants = new Set(getSurroundingQuadrants(cameraHolder.position.x, cameraHolder.position.z));
 
-  // Remove árvores do quadrante anterior
-  if (currentQuadrant && forestChunks.has(currentQuadrant)) {
-    forestChunks.get(currentQuadrant).forEach(tree => {
-      scene.remove(tree);
-    });
-  }
+  // Remover quadrantes que não estão mais ao redor
+  currentQuadrants.forEach(key => {
+    if (!newQuadrants.has(key)) {
+      const trees = forestChunks.get(key);
+      if (trees) {
+        trees.forEach(tree => scene.remove(tree));
+      }
+    }
+  });
 
-  // Adiciona árvores do novo quadrante
-  if (forestChunks.has(quad)) {
-    forestChunks.get(quad).forEach(tree => {
-      scene.add(tree);
-      addObstacle(tree, tree.position.x, tree.position.z); // manter colisão
-    });
-  }
+  // Adicionar novos quadrantes
+  newQuadrants.forEach(key => {
+    if (!currentQuadrants.has(key)) {
+      const trees = forestChunks.get(key);
+      if (trees) {
+        trees.forEach(tree => {
+          scene.add(tree);
+          addObstacle(tree, tree.position.x, tree.position.z);
+        });
+      }
+    }
+  });
 
-  currentQuadrant = quad;
+  currentQuadrants = newQuadrants;
 }
 
 function animate() {
