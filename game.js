@@ -18,7 +18,7 @@ let walkTime = 0;
 const visitedCells = new Set();
 
 // [GRID] Colisão otimizada
-const CELL_SIZE = 10;
+const CELL_SIZE = 5; // valor padrão = 10
 const QUADRANT_SIZE = 25;
 const MAX_QUAD_INDEX = 19;
 const obstacleGrid = new Map();
