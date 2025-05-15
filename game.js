@@ -15,6 +15,7 @@ let pauseAnimationFrame = null;
 let batteryInterval = null;
 let firstStart = true;
 let walkTime = 0;
+const visitedCells = new Set();
 
 // [GRID] Colisão otimizada
 const CELL_SIZE = 10;
@@ -461,6 +462,10 @@ function animate() {
 
   updateVisibleChunks(); // ← ESSA LINHA É ESSENCIAL
 
+  const cellKey = getCellKey(cameraHolder.position.x, cameraHolder.position.z);
+  visitedCells.add(cellKey);
+
+
   const speed = 0.15;
   const rotY = cameraHolder.rotation.y;
   const nextPosition = cameraHolder.position.clone();
@@ -580,17 +585,33 @@ function drawMinimap() {
 
   const mapSize = 500;
   const scale = canvas.width / mapSize;
+
+  // Desenhar células visitadas
+  ctx.fillStyle = "rgba(200, 200, 200, 0.3)"; // cinza translúcido
+
+  visitedCells.forEach(key => {
+    const [cellX, cellZ] = key.split(',').map(Number);
+    const x = cellX * CELL_SIZE;
+    const z = cellZ * CELL_SIZE;
+    const px = (x + mapSize / 2) * scale;
+    const py = (z + mapSize / 2) * scale;
+
+    const cellSizePx = CELL_SIZE * scale;
+    ctx.fillRect(px, py, cellSizePx, cellSizePx);
+  });
+
+  // Desenhar o jogador
   const x = cameraHolder.position.x;
   const z = cameraHolder.position.z;
-
-  const px = (x + mapSize/2) * scale;
-  const py = (z + mapSize/2) * scale;
+  const px = (x + mapSize / 2) * scale;
+  const py = (z + mapSize / 2) * scale;
 
   ctx.fillStyle = "red";
   ctx.beginPath();
   ctx.arc(px, py, 5, 0, Math.PI * 2);
   ctx.fill();
 }
+
 
 // ========== MENU ==========
 function showTab(tabName) {
