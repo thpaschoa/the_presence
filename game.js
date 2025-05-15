@@ -1,3 +1,5 @@
+import { initGhost, updateGhost } from './ghost.js';
+
 // ========== CENÁRIO E RENDER ==========
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x111111, 5, 30);
@@ -70,6 +72,8 @@ scene.add(flashlight);
 
 // const flashlightHelper = new THREE.SpotLightHelper(flashlight);
 // scene.add(flashlightHelper); // ← Apenas para desenvolvimento
+
+initGhost(scene, textureLoader, flashlight);
 
 // ========== TEXTURAS ==========
 const textureLoader = new THREE.TextureLoader();
@@ -460,6 +464,9 @@ function animate() {
   pauseAnimationFrame = requestAnimationFrame(animate);
 
   updateVisibleChunks(); // ← ESSA LINHA É ESSENCIAL
+
+  scene.userData.playerPos = cameraHolder.position.clone(); // posição atual do jogador
+  updateGhost(cameraHolder, camera);
 
   const speed = 0.15;
   const rotY = cameraHolder.rotation.y;
