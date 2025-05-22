@@ -213,6 +213,61 @@ function createForest() {
   }
 }
 
+function distributeBatteries(probability = 0.1) {
+  const batteryQuadrants = new Set();
+
+  forestChunks.forEach((trees, quadrantKey) => {
+    if (Math.random() < probability) {
+      const [qx, qz] = quadrantKey.split(',').map(Number);
+
+      // Verificar se algum vizinho já tem bateria
+      let tooClose = false;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const neighborKey = `${qx + dx},${qz + dz}`;
+          if (batteryQuadrants.has(neighborKey)) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (tooClose) break;
+      }
+
+      if (tooClose) return; // pula esse quadrante
+
+      // Tenta posicionar a bateria
+      const centerX = qx * QUADRANT_SIZE - 250 + QUADRANT_SIZE / 2;
+      const centerZ = qz * QUADRANT_SIZE - 250 + QUADRANT_SIZE / 2;
+      const attempts = 5;
+      let placed = false;
+
+      for (let i = 0; i < attempts && !placed; i++) {
+        const offsetX = (Math.random() - 0.5) * QUADRANT_SIZE;
+        const offsetZ = (Math.random() - 0.5) * QUADRANT_SIZE;
+        const posX = centerX + offsetX;
+        const posZ = centerZ + offsetZ;
+
+        let isTooCloseToTree = false;
+        for (const tree of trees) {
+          const dx = tree.position.x - posX;
+          const dz = tree.position.z - posZ;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < 3) {
+            isTooCloseToTree = true;
+            break;
+          }
+        }
+
+        if (!isTooCloseToTree) {
+          loadBatteryModel(posX, posZ);
+          batteryQuadrants.add(quadrantKey); // registra esse quadrante
+          placed = true;
+        }
+      }
+    }
+  });
+}
+
 function createFence(x, z, rotation = 0) {
   const fenceGeometry = new THREE.PlaneGeometry(4, 4);
   const fence = new THREE.Mesh(fenceGeometry, fenceMaterial);
@@ -248,6 +303,7 @@ function loadBatteryModel(x, z) {
     battery.position.set(x, 0.5, z); // flutuando levemente
     battery.userData.isBattery = true;
     battery.userData.baseY = battery.position.y;
+    battery.userData.seen = false; // vista ou não
 
     // Aplica brilho
     battery.traverse((child) => {
@@ -270,7 +326,7 @@ function loadBatteryModel(x, z) {
 
 createForest();
 createBorderFences();
-loadBatteryModel(0, -8); // Exemplo: coloca a bateria à frente do jogador
+distributeBatteries();
 
 // ========== CONTROLES ==========
 const controls = { forward: false, backward: false, left: false, right: false };
@@ -615,6 +671,7 @@ function animate() {
     const batteryBox = new THREE.Box3().setFromObject(obj);
     if (playerBox.intersectsBox(batteryBox)) {
       obj.visible = false;
+      obj.userData.seen = false; // ← Remove do minimapa
       battery = Math.min(100, battery + 25); // Recarrega 25%
       showBatteryPopup(); // ← AQUI É ADICIONADO
       updateHUD();
@@ -628,6 +685,22 @@ function animate() {
   battery.position.y = battery.userData.baseY + Math.sin(t * 2) * 0.1; // flutua
   });
 
+  collectibleBatteries.forEach(battery => {
+  if (!battery.visible || battery.userData.seen) return;
+
+  const toBattery = battery.position.clone().sub(cameraHolder.position);
+  const distance = toBattery.length();
+  if (distance > 20) return; // muito longe para ver
+
+  toBattery.normalize();
+  const cameraDirection = new THREE.Vector3();
+  camera.getWorldDirection(cameraDirection);
+
+  const dot = toBattery.dot(cameraDirection);
+  if (dot > 0.75) { // ângulo dentro do campo de visão (~41°)
+    battery.userData.seen = true;
+  }
+});
 
   renderer.render(scene, camera);
   drawMinimap();
@@ -672,6 +745,21 @@ function drawMinimap() {
   ctx.beginPath();
   ctx.arc(px, py, 5, 0, Math.PI * 2);
   ctx.fill();
+
+  collectibleBatteries.forEach(battery => {
+  if (!battery.userData.seen) return;
+
+  const mapSize = 500;
+  const scale = canvas.width / mapSize;
+  const px = (battery.position.x + mapSize / 2) * scale;
+  const py = (battery.position.z + mapSize / 2) * scale;
+
+  ctx.fillStyle = "blue";
+  ctx.beginPath();
+  ctx.arc(px, py, 3, 0, Math.PI * 2);
+  ctx.fill();
+});
+
 }
 
 
