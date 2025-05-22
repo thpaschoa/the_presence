@@ -741,10 +741,25 @@ function drawMinimap() {
   const px = (x + mapSize / 2) * scale;
   const py = (z + mapSize / 2) * scale;
 
-  ctx.fillStyle = "red";
+  // Obter direção da câmera
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const angle = Math.atan2(dir.x, dir.z);
+
+  // Desenhar triângulo no minimapa
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(-angle + Math.PI); // ← corrige a rotação
+
   ctx.beginPath();
-  ctx.arc(px, py, 5, 0, Math.PI * 2);
+  ctx.moveTo(0, -6);  // ponta
+  ctx.lineTo(4, 4);   // base direita
+  ctx.lineTo(-4, 4);  // base esquerda
+  ctx.closePath();
+
+  ctx.fillStyle = "red";
   ctx.fill();
+  ctx.restore();
 
   collectibleBatteries.forEach(battery => {
   if (!battery.userData.seen) return;
@@ -761,7 +776,6 @@ function drawMinimap() {
 });
 
 }
-
 
 // ========== MENU ==========
 function showTab(tabName) {
