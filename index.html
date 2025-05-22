@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>The Presence</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   
   <style>
     body {
@@ -192,5 +193,27 @@
 
   <!-- ========== SCRIPT DO JOGO ========== -->
   <script src="game.js"></script>
+
+  <!-- ========== MENSAGEM DE COLETA ========== -->
+  <div id="battery-popup" style="
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.8);
+    color: limegreen;
+    padding: 20px 30px;
+    border-radius: 10px;
+    font-size: 18px;
+    z-index: 200;
+    display: none;
+    pointer-events: none;
+    text-align: center;
+    box-shadow: 0 0 10px limegreen;
+  ">
+    🔋 Bateria Coletada!
+  </div>
+
+  
 </body>
 </html>

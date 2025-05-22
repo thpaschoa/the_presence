@@ -16,9 +16,10 @@ let batteryInterval = null;
 let firstStart = true;
 let walkTime = 0;
 const visitedCells = new Set();
+const collectibleBatteries = [];
 
 // [GRID] Colisão otimizada
-const CELL_SIZE = 5; // valor padrão = 10
+const CELL_SIZE = 3; // valor padrão = 10
 const QUADRANT_SIZE = 25;
 const MAX_QUAD_INDEX = 19;
 const obstacleGrid = new Map();
@@ -237,8 +238,39 @@ function createBorderFences() {
   }
 }
 
+// ========== OBJETOS COLETÁVEIS ==========
+const gltfLoader = new THREE.GLTFLoader();
+
+function loadBatteryModel(x, z) {
+  gltfLoader.load('models/battery_-_batarya.glb', (gltf) => {
+    const battery = gltf.scene;
+    battery.scale.set(0.03, 0.03, 0.03);
+    battery.position.set(x, 0.5, z); // flutuando levemente
+    battery.userData.isBattery = true;
+    battery.userData.baseY = battery.position.y;
+
+    // Aplica brilho
+    battery.traverse((child) => {
+      if (child.isMesh) {
+        child.material.emissive = new THREE.Color(0x00a8ff); // amarelo
+        child.material.emissiveIntensity = 0.4;
+        child.material.transparent = true;
+        child.material.opacity = 1;
+      }
+    });
+
+    scene.add(battery);
+    //addObstacle(battery, x, z);  TIRAR COLISÃO
+    collectibleBatteries.push(battery);
+  }, undefined, (error) => {
+    console.error('Erro ao carregar o modelo de bateria:', error);
+  });
+}
+
+
 createForest();
 createBorderFences();
+loadBatteryModel(0, -8); // Exemplo: coloca a bateria à frente do jogador
 
 // ========== CONTROLES ==========
 const controls = { forward: false, backward: false, left: false, right: false };
@@ -369,6 +401,17 @@ function updateHUD() {
   const modeNames = ["Médio", "Alto", "Desligado", "Baixo"];
   document.getElementById("flashlight-hud").textContent = "Modo da Lanterna: " + modeNames[flashlightMode];
 }
+
+function showBatteryPopup(message = "🔋 Bateria Coletada!") {
+  const popup = document.getElementById("battery-popup");
+  popup.textContent = message;
+  popup.style.display = "block";
+
+  setTimeout(() => {
+    popup.style.display = "none";
+  }, 1500);
+}
+
 
 // ========== BATERIA ==========
 let battery = 100;
@@ -566,6 +609,25 @@ function animate() {
   direction.y -= 0.1;
   flashlight.target.position.copy(flashlight.position.clone().add(direction.normalize()));
   flashlight.target.updateMatrixWorld();
+
+  scene.traverse((obj) => {
+  if (obj.userData.isBattery && obj.visible) {
+    const batteryBox = new THREE.Box3().setFromObject(obj);
+    if (playerBox.intersectsBox(batteryBox)) {
+      obj.visible = false;
+      battery = Math.min(100, battery + 25); // Recarrega 25%
+      showBatteryPopup(); // ← AQUI É ADICIONADO
+      updateHUD();
+      }
+    }
+  });
+
+  const t = Date.now() * 0.001;
+  collectibleBatteries.forEach((battery) => {
+  battery.rotation.y += 0.01; // gira
+  battery.position.y = battery.userData.baseY + Math.sin(t * 2) * 0.1; // flutua
+  });
+
 
   renderer.render(scene, camera);
   drawMinimap();
