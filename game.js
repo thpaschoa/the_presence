@@ -17,6 +17,7 @@ let firstStart = true;
 let walkTime = 0;
 const visitedCells = new Set();
 const collectibleBatteries = [];
+let ghostWrapper = null;
 
 // [GRID] Colisão otimizada
 const CELL_SIZE = 3; // valor padrão = 10
@@ -323,6 +324,42 @@ function loadBatteryModel(x, z) {
   });
 }
 
+function loadEntityModel(path, offsetX = 0) {
+  gltfLoader.load(path, (gltf) => {
+    const model = gltf.scene;
+    model.scale.set(3, 3, 3);
+    model.rotation.y = -Math.PI / 2 - 0.1;
+
+    // 💡 Luz que acompanha a entidade
+    const light = new THREE.PointLight(0xffffff, 0.25, 12.5);
+    light.position.set(0, 3, 0);
+    model.add(light);
+
+    // ✨ Efeito emissivo no material (opcional)
+    model.traverse(child => {
+      if (child.isMesh) {
+        child.material.emissive = new THREE.Color(0xffffff);
+        child.material.emissiveIntensity = 0.1;
+      }
+    });
+
+    const wrapper = new THREE.Group();
+    wrapper.add(model);
+    wrapper.position.set(
+      cameraHolder.position.x + offsetX,
+      0,
+      cameraHolder.position.z - 10
+    );
+
+    scene.add(wrapper);
+
+    if (path.includes('ghost_daughter')) {
+      ghostWrapper = wrapper;
+    }
+  }, undefined, (error) => {
+    console.error(`Erro ao carregar modelo ${path}:`, error);
+  });
+}
 
 createForest();
 createBorderFences();
@@ -702,6 +739,24 @@ function animate() {
   }
 });
 
+  // Atualiza a posição do fantasma
+  if (ghostWrapper) {
+    const playerPos = cameraHolder.position.clone();
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    dir.normalize();
+
+    // Distância atrás do jogador
+    const followDistance = -10;
+
+    // Posição desejada da entidade
+    const desiredPos = playerPos.clone().sub(dir.multiplyScalar(followDistance));
+    desiredPos.y = 0; // manter no chão
+
+    ghostWrapper.position.lerp(desiredPos, 0.05); // suaviza o movimento
+    ghostWrapper.lookAt(playerPos.clone().setY(0)); // sempre olhando pro jogador
+  }
+
   renderer.render(scene, camera);
   drawMinimap();
 }
@@ -800,6 +855,7 @@ function startGame() {
   batteryInterval = setInterval(updateBattery, 1000);
 }
 
+
 function hideNoteAndStart() {
   if (!gameStarted) {
     document.getElementById("note-overlay").style.display = "none";
@@ -809,8 +865,12 @@ function hideNoteAndStart() {
     gamePaused = false;
     animate();
     batteryInterval = setInterval(updateBattery, 1000);
+
+    // 👻 Carregar entidade aqui
+    loadEntityModel('models/ghost_daughter.glb', 0);
   }
 }
+
 
 document.getElementById("note-overlay").addEventListener("click", hideNoteAndStart);
 document.addEventListener("keydown", () => {
