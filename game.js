@@ -18,6 +18,7 @@ let walkTime = 0;
 const visitedCells = new Set();
 const collectibleBatteries = [];
 let ghostWrapper = null;
+let ghostLight = null;
 
 // [GRID] Colisão otimizada
 const CELL_SIZE = 3; // valor padrão = 10
@@ -205,7 +206,7 @@ function createForest() {
       const isPath = distanceFromCenter < 12;
 
       if (!isPath && rng() > 0.3) {
-        const tree = createTreeObject(x + rng() * 2, z + rng() * 2);
+        const tree = createTreeObject(x + rng() * 0.5, z + rng() * 0.5);
         const quadrant = getQuadrantKey(tree.position.x, tree.position.z);
         if (!forestChunks.has(quadrant)) forestChunks.set(quadrant, []);
         forestChunks.get(quadrant).push(tree);
@@ -253,7 +254,7 @@ function distributeBatteries(probability = 0.1) {
           const dx = tree.position.x - posX;
           const dz = tree.position.z - posZ;
           const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist < 3) {
+          if (dist < 5) {
             isTooCloseToTree = true;
             break;
           }
@@ -310,7 +311,7 @@ function loadBatteryModel(x, z) {
     battery.traverse((child) => {
       if (child.isMesh) {
         child.material.emissive = new THREE.Color(0x00a8ff); // amarelo
-        child.material.emissiveIntensity = 0.4;
+        child.material.emissiveIntensity = 0.2;
         child.material.transparent = true;
         child.material.opacity = 1;
       }
@@ -335,6 +336,24 @@ function loadEntityModel(path, offsetX = 0) {
     light.position.set(0, 3, 0);
     model.add(light);
 
+    model.traverse((child) => {
+    if (child.isMesh) {
+      // Converte o material para MeshStandardMaterial se necessário
+      const oldMat = child.material;
+      child.material = new THREE.MeshStandardMaterial({
+        map: oldMat.map || null,
+        color: oldMat.color || new THREE.Color(0xffffff),
+        metalness: 0.2,
+        roughness: 0.6,
+        emissive: new THREE.Color(0x000000), // sem brilho extra
+        side: THREE.FrontSide,
+      });
+
+      child.castShadow = true;
+      child.receiveShadow = true;
+      }
+    });
+
     // ✨ Efeito emissivo no material (opcional)
     model.traverse(child => {
       if (child.isMesh) {
@@ -352,6 +371,13 @@ function loadEntityModel(path, offsetX = 0) {
     );
 
     scene.add(wrapper);
+
+    // Criar a luz que ilumina a entidade de frente
+    ghostLight = new THREE.SpotLight(0xff6666, 1.5, 20, Math.PI / 6, 0.5, 1);
+    ghostLight.castShadow = true;
+    scene.add(ghostLight);
+    scene.add(ghostLight.target); // necessário para SpotLight funcionar corretamente
+
 
     if (path.includes('ghost_daughter')) {
       ghostWrapper = wrapper;
@@ -689,8 +715,8 @@ function animate() {
   }
   if (!collidesZ) {
     cameraHolder.position.z = nextPosition.z;
+    }
   }
-}
 
   const isMoving = controls.forward || controls.backward || controls.left || controls.right;
   camera.position.y = isMoving ? 3 + Math.sin(walkTime * 2) * 0.1 : 3;
@@ -736,8 +762,8 @@ function animate() {
   const dot = toBattery.dot(cameraDirection);
   if (dot > 0.75) { // ângulo dentro do campo de visão (~41°)
     battery.userData.seen = true;
-  }
-});
+    }
+  });
 
   // Atualiza a posição do fantasma
   if (ghostWrapper) {
@@ -751,15 +777,32 @@ function animate() {
 
     // Posição desejada da entidade
     const desiredPos = playerPos.clone().sub(dir.multiplyScalar(followDistance));
-    desiredPos.y = 0; // manter no chão
+    desiredPos.y = 1; // manter no chão
 
     ghostWrapper.position.lerp(desiredPos, 0.05); // suaviza o movimento
     ghostWrapper.lookAt(playerPos.clone().setY(0)); // sempre olhando pro jogador
   }
 
+  if (ghostWrapper && ghostLight) {
+    const playerPos = cameraHolder.position.clone();
+    const ghostPos = ghostWrapper.position.clone();
+
+    const dirToPlayer = playerPos.clone().sub(ghostPos).normalize();
+    const offsetDistance = 10; // ← distância fixa desejada
+
+    const lightPos = ghostPos.clone().add(dirToPlayer.multiplyScalar(offsetDistance));
+    lightPos.y += 2; // altura da luz
+
+    ghostLight.position.copy(lightPos);
+
+    // Luz sempre apontando para a entidade
+    ghostLight.target.position.copy(ghostPos.clone().setY(3.5));
+    ghostLight.target.updateMatrixWorld();
+  }
+
   renderer.render(scene, camera);
   drawMinimap();
-}
+  }
 
 // ========== MINIMAPA ==========
 function drawMinimap() {
@@ -855,7 +898,6 @@ function startGame() {
   batteryInterval = setInterval(updateBattery, 1000);
 }
 
-
 function hideNoteAndStart() {
   if (!gameStarted) {
     document.getElementById("note-overlay").style.display = "none";
@@ -870,7 +912,6 @@ function hideNoteAndStart() {
     loadEntityModel('models/ghost_daughter.glb', 0);
   }
 }
-
 
 document.getElementById("note-overlay").addEventListener("click", hideNoteAndStart);
 document.addEventListener("keydown", () => {
