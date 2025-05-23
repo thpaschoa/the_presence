@@ -19,6 +19,8 @@ const visitedCells = new Set();
 const collectibleBatteries = [];
 let ghostWrapper = null;
 let ghostLight = null;
+let ghostMixer = null;
+const clock = new THREE.Clock(); // ← Para animações
 
 // [GRID] Colisão otimizada
 const CELL_SIZE = 3; // valor padrão = 10
@@ -328,6 +330,14 @@ function loadBatteryModel(x, z) {
 function loadEntityModel(path, offsetX = 0) {
   gltfLoader.load(path, (gltf) => {
     const model = gltf.scene;
+
+    if (gltf.animations && gltf.animations.length > 0) {
+      ghostMixer = new THREE.AnimationMixer(model);
+      const action = ghostMixer.clipAction(gltf.animations[0]); // ← primeira animação
+      action.timeScale = 1.5; // velocidade da animação
+      action.play();
+    }
+
     model.scale.set(3, 3, 3);
     model.rotation.y = -Math.PI / 2 - 0.1;
 
@@ -347,6 +357,7 @@ function loadEntityModel(path, offsetX = 0) {
         roughness: 0.6,
         emissive: new THREE.Color(0x000000), // sem brilho extra
         side: THREE.FrontSide,
+        skinning: true,  // ← ESSENCIAL!
       });
 
       child.castShadow = true;
@@ -623,6 +634,9 @@ function animate() {
   pauseAnimationFrame = requestAnimationFrame(animate);
 
   updateVisibleChunks(); // ← ESSA LINHA É ESSENCIAL
+
+  const delta = clock.getDelta();
+  if (ghostMixer) ghostMixer.update(delta);
 
   const cellKey = getCellKey(cameraHolder.position.x, cameraHolder.position.z);
   visitedCells.add(cellKey);
