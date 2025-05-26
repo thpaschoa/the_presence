@@ -20,8 +20,11 @@ const collectibleBatteries = [];
 let ghostWrapper = null;
 let ghostLight = null;
 let ghostMixer = null;
+let ghostWaypoints = [];
+let ghostTargetIndex = 0;
 const clock = new THREE.Clock(); // ← Para animações
 let globalVolume = 1;
+let difficultyLevel = 0;
 
 // ========== SOM ==========
 const ambientSound = new Audio('sounds/owlandtheharvestmoon.wav');
@@ -507,11 +510,7 @@ function loadEntityModel(path, offsetX = 0) {
 
     const wrapper = new THREE.Group();
     wrapper.add(model);
-    wrapper.position.set(
-      cameraHolder.position.x + offsetX,
-      0,
-      cameraHolder.position.z - 10
-    );
+    wrapper.position.set(100, 0, 100); // Longe do centro
 
     scene.add(wrapper);
 
@@ -535,7 +534,15 @@ distributeSpecialParts(() => {
   createForest();
   distributeBatteries();
   updatePartsHUD();
+  updateGhostWaypoints();
 });
+
+function updateGhostWaypoints() {
+  ghostWaypoints = specialItems
+    .filter(part => !part.userData.collected)
+    .map(part => part.position.clone());
+}
+
 
 
 // ========== CONTROLES ==========
@@ -784,6 +791,25 @@ function updateVisibleChunks() {
   currentQuadrants = newQuadrants;
 }
 
+function updateGhostBehavior(delta) {
+  if (!ghostWrapper || ghostWaypoints.length === 0) return;
+
+  const target = ghostWaypoints[ghostTargetIndex];
+  const ghostPos = ghostWrapper.position;
+
+  // Movimento do fantasma em direção à peça
+  ghostWrapper.position.lerp(target, 0.01 + difficultyLevel * 0.005);
+
+  // Se chegou perto da peça, vai para a próxima
+  if (ghostPos.distanceTo(target) < 2) {
+    ghostTargetIndex = (ghostTargetIndex + 1) % ghostWaypoints.length;
+  }
+
+  const playerPos = cameraHolder.position.clone();
+  ghostWrapper.lookAt(playerPos.clone().setY(0));
+}
+
+
 function animate() {
   if (gamePaused) return;
   pauseAnimationFrame = requestAnimationFrame(animate);
@@ -792,6 +818,7 @@ function animate() {
 
   const delta = clock.getDelta();
   if (ghostMixer) ghostMixer.update(delta);
+  updateGhostBehavior(delta);
 
   const cellKey = getCellKey(cameraHolder.position.x, cameraHolder.position.z);
   visitedCells.add(cellKey);
@@ -907,6 +934,7 @@ function animate() {
       battery = Math.min(100, battery + 25); // Recarrega 25%
       showBatteryPopup(); // ← AQUI É ADICIONADO
       updateHUD();
+      updateGhostWaypoints();
       }
     }
   });
@@ -917,6 +945,7 @@ function animate() {
     if (playerBox.intersectsBox(specialBox)) {
       obj.visible = false;
       obj.userData.collected = true; // ← marca como coletada
+      difficultyLevel = Math.min(specialItems.filter(p => p.userData.collected).length, 5);
       showSpecialPartPopup(obj.userData.name);
       updatePartsHUD();
       }
@@ -953,7 +982,7 @@ function animate() {
   });
 
   // Atualiza a posição do fantasma
-  if (ghostWrapper) {
+/*  if (ghostWrapper) {
     const playerPos = cameraHolder.position.clone();
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
@@ -968,7 +997,7 @@ function animate() {
 
     ghostWrapper.position.lerp(desiredPos, 0.05); // suaviza o movimento
     ghostWrapper.lookAt(playerPos.clone().setY(0)); // sempre olhando pro jogador
-  }
+  } */
 
   if (ghostWrapper && ghostLight) {
     const playerPos = cameraHolder.position.clone();
@@ -1070,6 +1099,20 @@ specialItems.forEach(part => {
   ctx.arc(px, py, 4, 0, Math.PI * 2);
   ctx.fill();
   });
+  
+    // 👻 Desenhar o fantasma em roxo no minimapa
+  if (ghostWrapper) {
+    const ghostX = ghostWrapper.position.x;
+    const ghostZ = ghostWrapper.position.z;
+    const gpx = (ghostX + mapSize / 2) * scale;
+    const gpy = (ghostZ + mapSize / 2) * scale;
+
+    ctx.fillStyle = "purple";
+    ctx.beginPath();
+    ctx.arc(gpx, gpy, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
 }
 
 // ========== MENU ==========
