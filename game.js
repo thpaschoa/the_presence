@@ -21,6 +21,19 @@ let ghostWrapper = null;
 let ghostLight = null;
 let ghostMixer = null;
 const clock = new THREE.Clock(); // ← Para animações
+let globalVolume = 1;
+
+// ========== SOM ==========
+const ambientSound = new Audio('sounds/owlandtheharvestmoon.wav');
+ambientSound.loop = true;
+ambientSound.volume = globalVolume;
+
+// 🎚️ Controle de volume
+document.getElementById("volume-slider").addEventListener("input", (e) => {
+  globalVolume = e.target.value / 100;
+  ambientSound.volume = globalVolume;
+});
+
 
 // [GRID] Colisão otimizada
 const CELL_SIZE = 3; // valor padrão = 10
@@ -79,15 +92,15 @@ scene.add(flashlight);
 
 // ========== TEXTURAS ==========
 const textureLoader = new THREE.TextureLoader();
-const groundTexture = textureLoader.load('chao.jpg');
+const groundTexture = textureLoader.load('images/chao.jpg');
 groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
 groundTexture.repeat.set(40, 40);
 
-const trunkTexture = textureLoader.load('tronco.jpg');
+const trunkTexture = textureLoader.load('images/tronco.jpg');
 trunkTexture.wrapS = trunkTexture.wrapT = THREE.RepeatWrapping;
 trunkTexture.repeat.set(1, 2);
 
-const fenceTexture = textureLoader.load('cerca.png');
+const fenceTexture = textureLoader.load('images/cerca.png');
 fenceTexture.wrapS = THREE.RepeatWrapping;
 fenceTexture.wrapT = THREE.ClampToEdgeWrapping;
 fenceTexture.repeat.set(1, 1);
@@ -334,7 +347,7 @@ function loadEntityModel(path, offsetX = 0) {
     if (gltf.animations && gltf.animations.length > 0) {
       ghostMixer = new THREE.AnimationMixer(model);
       const action = ghostMixer.clipAction(gltf.animations[0]); // ← primeira animação
-      action.timeScale = 1.5; // velocidade da animação
+      action.timeScale = 2; // velocidade da animação
       action.play();
     }
 
@@ -921,6 +934,8 @@ function hideNoteAndStart() {
     gamePaused = false;
     animate();
     batteryInterval = setInterval(updateBattery, 1000);
+
+    ambientSound.play(); // ← TOCAR AQUI
 
     // 👻 Carregar entidade aqui
     loadEntityModel('models/ghost_daughter.glb', 0);
