@@ -423,10 +423,11 @@ function loadSpecialPart(modelPath, name, x, z, onLoadComplete) {
     const partData = specialParts.find(p => p.name === name);
     const scale = partData?.scale || [0.3, 0.3, 0.3];
     part.scale.set(...scale);
-    part.position.set(x, 0.5, z);
+    part.position.set(x, 1.25, z);
     part.userData.isSpecial = true;
     part.userData.name = name;
     part.userData.collected = false;
+    part.userData.baseY = part.position.y; // ← Adicionado
 
     specialItemPositions.push({ x, z });
 
@@ -926,6 +927,12 @@ function animate() {
   collectibleBatteries.forEach((battery) => {
   battery.rotation.y += 0.01; // gira
   battery.position.y = battery.userData.baseY + Math.sin(t * 2) * 0.1; // flutua
+  });
+
+  specialItems.forEach((item) => {
+  if (!item.visible) return;
+  item.rotation.y += 0.01; // gira
+  item.position.y = item.userData.baseY + Math.sin(t * 2) * 0.1; // flutua
   });
 
   collectibleBatteries.forEach(battery => {
