@@ -68,6 +68,19 @@
       z-index: 10;
     }
 
+    /* ========== HUD / PEÇAS COLETADAS ========== */
+    #parts-hud {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 10;
+    }
+
     /* ========== MENU PRINCIPAL ========== */
     #main-menu {
       position: absolute;
@@ -187,6 +200,9 @@
   <div id="note-overlay">
     <img id="note-image" src="images/notepaper.png" alt="Nota misteriosa" />
   </div>
+
+  <!-- ========== HUD / PEÇAS COLETADAS ========== -->
+  <div id="parts-hud">Peças Coletadas: 0 / 5</div>
 
   <!-- ========== MINIMAPA ========== -->
   <canvas id="minimap" width="150" height="150"></canvas>

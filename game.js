@@ -122,6 +122,18 @@ const ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
+// ========== PEÇAS ESPECIAIS ==========
+const specialParts = [
+  { name: "Speaker", model: "models/generic_speaker.glb", scale: [0.02, 0.02, 0.02] },
+  { name: "Headset", model: "models/headset.glb", scale: [0.5, 0.5, 0.5] },
+  { name: "Board", model: "models/line_follower_robot_control_board.glb", scale: [0.15, 0.15, 0.15] },
+  { name: "BatteryPSX", model: "models/battery_psx_style.glb", scale: [1.25, 1.25, 1.25] },
+  { name: "Antenna", model: "models/antenadehielo_cable_2.glb", scale: [0.01, 0.01, 0.01] }
+];
+
+const specialItems = [];
+const specialItemPositions = []; // ← usado para impedir árvores próximas
+
 // ========== FLORESTA ==========
 function createSeededRandom(seed) {
   let value = seed % 2147483647;
@@ -221,10 +233,22 @@ function createForest() {
       const isPath = distanceFromCenter < 12;
 
       if (!isPath && rng() > 0.3) {
-        const tree = createTreeObject(x + rng() * 0.5, z + rng() * 0.5);
-        const quadrant = getQuadrantKey(tree.position.x, tree.position.z);
-        if (!forestChunks.has(quadrant)) forestChunks.set(quadrant, []);
-        forestChunks.get(quadrant).push(tree);
+      const posX = x + rng() * 0.5;
+      const posZ = z + rng() * 0.5;
+
+      // Verifica se está longe o suficiente de cada peça especial
+      let tooCloseToPart = specialItemPositions.some(p => {
+        const dx = p.x - posX;
+        const dz = p.z - posZ;
+        return Math.sqrt(dx * dx + dz * dz) < 5;
+      });
+
+      if (tooCloseToPart) continue;
+
+      const tree = createTreeObject(posX, posZ);
+      const quadrant = getQuadrantKey(tree.position.x, tree.position.z);
+      if (!forestChunks.has(quadrant)) forestChunks.set(quadrant, []);
+      forestChunks.get(quadrant).push(tree);
       }
     }
   }
@@ -285,6 +309,59 @@ function distributeBatteries(probability = 0.1) {
   });
 }
 
+function distributeSpecialParts(onFinish) {
+  const regions = [
+    { name: "NE", xMin: 0,     xMax: 250,  zMin: 0,     zMax: 250 },
+    { name: "NW", xMin: -250,  xMax: 0,    zMin: 0,     zMax: 250 },
+    { name: "SE", xMin: 0,     xMax: 250,  zMin: -250,  zMax: 0 },
+    { name: "SW", xMin: -250,  xMax: 0,    zMin: -250,  zMax: 0 },
+  ];
+
+  const minPartDistance = 75;
+  const minPlayerDistance = 75;
+
+  const shuffledParts = [...specialParts].sort(() => Math.random() - 0.5);
+  let loadedCount = 0;
+
+  for (let i = 0; i < shuffledParts.length; i++) {
+    const part = shuffledParts[i];
+
+    // Escolher região: 1 por quadrante para os 4 primeiros
+    const region = i < 4
+      ? regions[i]
+      : regions[Math.floor(Math.random() * regions.length)];
+
+    let placed = false;
+
+    while (!placed) {
+      const posX = Math.random() * (region.xMax - region.xMin) + region.xMin;
+      const posZ = Math.random() * (region.zMax - region.zMin) + region.zMin;
+
+      // Garante distância entre peças já colocadas
+      const tooCloseToOtherPart = specialItemPositions.some(p => {
+        const dx = p.x - posX;
+        const dz = p.z - posZ;
+        return Math.sqrt(dx * dx + dz * dz) < minPartDistance;
+      });
+
+      // Garante distância do jogador inicial
+      const distToPlayer = Math.sqrt(posX * posX + posZ * posZ);
+      const tooCloseToPlayer = distToPlayer < minPlayerDistance;
+
+      if (tooCloseToOtherPart || tooCloseToPlayer) continue;
+
+      placed = true;
+
+      loadSpecialPart(part.model, part.name, posX, posZ, () => {
+        loadedCount++;
+        if (loadedCount === specialParts.length && typeof onFinish === "function") {
+          onFinish();
+        }
+      });
+    }
+  }
+}
+
 function createFence(x, z, rotation = 0) {
   const fenceGeometry = new THREE.PlaneGeometry(4, 4);
   const fence = new THREE.Mesh(fenceGeometry, fenceMaterial);
@@ -337,6 +414,47 @@ function loadBatteryModel(x, z) {
     collectibleBatteries.push(battery);
   }, undefined, (error) => {
     console.error('Erro ao carregar o modelo de bateria:', error);
+  });
+}
+
+function loadSpecialPart(modelPath, name, x, z, onLoadComplete) {
+  gltfLoader.load(modelPath, (gltf) => {
+    const part = gltf.scene;
+    const partData = specialParts.find(p => p.name === name);
+    const scale = partData?.scale || [0.3, 0.3, 0.3];
+    part.scale.set(...scale);
+    part.position.set(x, 0.5, z);
+    part.userData.isSpecial = true;
+    part.userData.name = name;
+    part.userData.collected = false;
+
+    specialItemPositions.push({ x, z });
+
+    part.traverse((child) => {
+      if (child.isMesh) {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: new THREE.Color(0x00ff66),
+          emissiveIntensity: 0.3,
+          metalness: 0.1,
+          roughness: 0.7
+        });
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    scene.add(part);
+    specialItems.push(part);
+
+    if (typeof onLoadComplete === 'function') {
+      onLoadComplete();
+    }
+  }, undefined, (error) => {
+    console.error(`Erro ao carregar modelo especial (${name}):`, error);
+    if (typeof onLoadComplete === 'function') {
+      onLoadComplete(); // mesmo com erro, avançamos
+    }
   });
 }
 
@@ -411,9 +529,13 @@ function loadEntityModel(path, offsetX = 0) {
   });
 }
 
-createForest();
 createBorderFences();
-distributeBatteries();
+distributeSpecialParts(() => {
+  createForest();
+  distributeBatteries();
+  updatePartsHUD();
+});
+
 
 // ========== CONTROLES ==========
 const controls = { forward: false, backward: false, left: false, right: false };
@@ -545,6 +667,11 @@ function updateHUD() {
   document.getElementById("flashlight-hud").textContent = "Modo da Lanterna: " + modeNames[flashlightMode];
 }
 
+function updatePartsHUD() {
+  const collected = specialItems.filter(part => part.userData.collected).length;
+  document.getElementById("parts-hud").textContent = `Peças Coletadas: ${collected} / ${specialParts.length}`;
+}
+
 function showBatteryPopup(message = "🔋 Bateria Coletada!") {
   const popup = document.getElementById("battery-popup");
   popup.textContent = message;
@@ -555,6 +682,20 @@ function showBatteryPopup(message = "🔋 Bateria Coletada!") {
   }, 1500);
 }
 
+function showSpecialPartPopup(name = "Peça Coletada!") {
+  const popup = document.getElementById("battery-popup");
+  popup.textContent = "🎯 " + name + " coletada!";
+  popup.style.display = "block";
+  popup.style.color = "lime";
+
+  popup.style.boxShadow = "0 0 10px lime";
+
+  setTimeout(() => {
+    popup.style.display = "none";
+    popup.style.color = "limegreen";
+    popup.style.boxShadow = "0 0 10px limegreen";
+  }, 1500);
+}
 
 // ========== BATERIA ==========
 let battery = 100;
@@ -769,6 +910,18 @@ function animate() {
     }
   });
 
+  scene.traverse((obj) => {
+  if (obj.userData.isSpecial && obj.visible) {
+    const specialBox = new THREE.Box3().setFromObject(obj);
+    if (playerBox.intersectsBox(specialBox)) {
+      obj.visible = false;
+      obj.userData.collected = true; // ← marca como coletada
+      showSpecialPartPopup(obj.userData.name);
+      updatePartsHUD();
+      }
+    }
+  });
+
   const t = Date.now() * 0.001;
   collectibleBatteries.forEach((battery) => {
   battery.rotation.y += 0.01; // gira
@@ -900,6 +1053,16 @@ function drawMinimap() {
   ctx.fill();
 });
 
+specialItems.forEach(part => {
+  if (part.userData.collected) return; // não mostra se já foi coletada
+
+  const px = (part.position.x + mapSize / 2) * scale;
+  const py = (part.position.z + mapSize / 2) * scale;
+  ctx.fillStyle = "lime";
+  ctx.beginPath();
+  ctx.arc(px, py, 4, 0, Math.PI * 2);
+  ctx.fill();
+  });
 }
 
 // ========== MENU ==========
