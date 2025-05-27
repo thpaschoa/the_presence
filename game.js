@@ -791,24 +791,82 @@ function updateVisibleChunks() {
   currentQuadrants = newQuadrants;
 }
 
-function updateGhostBehavior(delta) {
-  if (!ghostWrapper || ghostWaypoints.length === 0) return;
-
-  const target = ghostWaypoints[ghostTargetIndex];
-  const ghostPos = ghostWrapper.position;
-
-  // Movimento do fantasma em direção à peça
-  ghostWrapper.position.lerp(target, 0.01 + difficultyLevel * 0.005);
-
-  // Se chegou perto da peça, vai para a próxima
-  if (ghostPos.distanceTo(target) < 2) {
-    ghostTargetIndex = (ghostTargetIndex + 1) % ghostWaypoints.length;
+function getGhostConfig() {
+  if (difficultyLevel <= 1) {
+    return {
+      target: "waypoints",
+      speed: 0.01 + difficultyLevel * 0.005,
+      detectRange: 0,
+      alwaysChase: false,
+      intenseEffects: false
+    };
+  } else if (difficultyLevel <= 3) {
+    return {
+      target: "hybrid",
+      speed: 0.002,            // Moderado, mas ainda mais lento que o player
+      detectRange: 30,
+      alwaysChase: false,
+      intenseEffects: false
+    };
+  } else {
+    return {
+      target: "player",
+      speed: 0.0035,            // Ainda controlado, mesmo em nível alto
+      detectRange: Infinity,
+      alwaysChase: true,
+      intenseEffects: false
+    };
   }
-
-  const playerPos = cameraHolder.position.clone();
-  ghostWrapper.lookAt(playerPos.clone().setY(0));
 }
 
+function updateGhostBehavior(delta) {
+  if (!ghostWrapper) return;
+
+  const config = getGhostConfig();
+  const playerPos = cameraHolder.position.clone();
+  let targetPos = null;
+
+  const distanceToPlayer = ghostWrapper.position.distanceTo(playerPos);
+
+  // 🎯 Escolha do destino com base no nível
+  if (config.target === "player") {
+    targetPos = playerPos;
+  } else if (config.target === "hybrid") {
+    if (distanceToPlayer <= config.detectRange) {
+      targetPos = playerPos;
+    } else if (ghostWaypoints.length > 0) {
+      targetPos = ghostWaypoints[ghostTargetIndex];
+      if (ghostWrapper.position.distanceTo(targetPos) < 2) {
+        ghostTargetIndex = (ghostTargetIndex + 1) % ghostWaypoints.length;
+      }
+    }
+  } else if (ghostWaypoints.length > 0) {
+    targetPos = ghostWaypoints[ghostTargetIndex];
+    if (ghostWrapper.position.distanceTo(targetPos) < 2) {
+      ghostTargetIndex = (ghostTargetIndex + 1) % ghostWaypoints.length;
+    }
+  }
+
+  // Movimento em direção ao destino
+  if (targetPos) {
+    const moveSpeed = config.speed;
+    const newPos = ghostWrapper.position.clone().lerp(targetPos, moveSpeed);
+    newPos.y = 1;
+    ghostWrapper.position.copy(newPos);
+    ghostWrapper.lookAt(playerPos.clone().setY(1));
+  }
+
+  // 🎵 Efeitos visuais e sonoros
+  if (config.intenseEffects && distanceToPlayer < 15) {
+    if (ghostLight) ghostLight.intensity = 2.5;
+    if (!flickerActive && Math.random() < 0.01) {
+      startFlicker();
+    }
+    // Adicione efeitos sonoros aqui, se quiser
+  } else {
+    if (ghostLight) ghostLight.intensity = 1.5;
+  }
+}
 
 function animate() {
   if (gamePaused) return;
