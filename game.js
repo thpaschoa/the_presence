@@ -25,6 +25,8 @@ let ghostTargetIndex = 0;
 const clock = new THREE.Clock(); // ← Para animações
 let globalVolume = 1;
 let difficultyLevel = 0;
+let finalTriggered = false;
+let finalSequenceStarted = false;
 
 // ========== SOM ==========
 const ambientSound = new Audio('sounds/owlandtheharvestmoon.wav');
@@ -1006,6 +1008,21 @@ function animate() {
       difficultyLevel = Math.min(specialItems.filter(p => p.userData.collected).length, 5);
       showSpecialPartPopup(obj.userData.name);
       updatePartsHUD();
+      const allCollected = specialItems.filter(p => p.userData.collected).length === specialParts.length;
+      if (allCollected && !finalTriggered) {
+        finalTriggered = true;
+        updateGhostWaypoints(); // limpa waypoints de peças
+
+        const popup = document.getElementById("battery-popup");
+        popup.textContent = "... something is waiting at the center.";
+        popup.style.display = "block";
+        popup.style.color = "white";
+        popup.style.boxShadow = "0 0 10px white";
+
+        setTimeout(() => {
+          popup.style.display = "none";
+          }, 2000);
+        }
       }
     }
   });
@@ -1072,6 +1089,13 @@ function animate() {
     // Luz sempre apontando para a entidade
     ghostLight.target.position.copy(ghostPos.clone().setY(3.5));
     ghostLight.target.updateMatrixWorld();
+  }
+
+  if (finalTriggered && !finalSequenceStarted) {
+    const distToCenter = cameraHolder.position.length(); // distância ao ponto (0, 0)
+    if (distToCenter < 10) {
+      startFinalSequence();
+    }
   }
 
   renderer.render(scene, camera);
@@ -1171,6 +1195,83 @@ specialItems.forEach(part => {
     ctx.fill();
   }
 
+}
+
+function startFinalSequence() {
+  finalSequenceStarted = true;
+  console.log("⚠️ Sequência final iniciada");
+
+  resetControls();
+  gamePaused = true;
+
+  flashlight.intensity = 0;
+  ambientSound.pause();
+  console.log("🎵 Música pausada, lanterna desligada");
+
+  const overlay = document.createElement("div");
+  overlay.id = "final-overlay";
+  overlay.style.position = "absolute";
+  overlay.style.top = 0;
+  overlay.style.left = 0;
+  overlay.style.width = "100%";
+  overlay.style.height = "100%";
+  overlay.style.background = "black";
+  overlay.style.opacity = 0;
+  overlay.style.zIndex = 300;
+  overlay.style.transition = "opacity 6s";
+  document.body.appendChild(overlay);
+
+  setTimeout(() => {
+    overlay.style.opacity = 1;
+    console.log("🕶️ Overlay escurecendo...");
+  }, 1000);
+
+  setTimeout(() => {
+    console.log("⌛ Exibindo frase final...");
+
+    const message = document.createElement("div");
+    message.innerText = "Some truths were never meant to be uncovered.";
+    message.style.position = "absolute";
+    message.style.top = "50%";
+    message.style.left = "50%";
+    message.style.transform = "translate(-50%, -50%)";
+    message.style.color = "white";
+    message.style.fontSize = "24px";
+    message.style.fontFamily = "serif";
+    message.style.textAlign = "center";
+    message.style.zIndex = 400;
+    message.style.opacity = 0;
+    message.style.transition = "opacity 3s";
+
+    document.body.appendChild(message);
+
+    setTimeout(() => {
+      message.style.opacity = 1;
+      console.log("✅ Mensagem final aparecendo");
+    }, 2000);
+
+    setTimeout(() => {
+      const reloadButton = document.createElement("button");
+      reloadButton.innerText = "Play Again";
+      reloadButton.style.position = "absolute";
+      reloadButton.style.top = "65%";
+      reloadButton.style.left = "50%";
+      reloadButton.style.transform = "translate(-50%, -50%)";
+      reloadButton.style.padding = "10px 20px";
+      reloadButton.style.fontSize = "16px";
+      reloadButton.style.zIndex = 401;
+      reloadButton.style.cursor = "pointer";
+      reloadButton.style.border = "none";
+      reloadButton.style.borderRadius = "5px";
+      reloadButton.style.background = "#444";
+      reloadButton.style.color = "white";
+
+      reloadButton.onclick = () => location.reload();
+
+      document.body.appendChild(reloadButton);
+      console.log("🔁 Botão de reiniciar exibido");
+    }, 5000);
+  }, 4000);
 }
 
 // ========== MENU ==========
