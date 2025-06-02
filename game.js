@@ -25,16 +25,36 @@ let ghostTargetIndex = 0;
 const clock = new THREE.Clock(); // ← Para animações
 let globalVolume = 1;
 let difficultyLevel = 0;
+const BATTERY_LOW_THRESHOLD = 10; // ← Limite de bateria para aviso
+let lowBatterySoundPlayed = false;
 
 // ========== SOM ==========
 const ambientSound = new Audio('sounds/owlandtheharvestmoon.wav');
 ambientSound.loop = true;
-ambientSound.volume = globalVolume;
+ambientSound.volume = globalVolume * 0.25;
+
+const batterySound = new Audio('sounds/collect_battery.wav');
+batterySound.volume = globalVolume;
+
+const radioSound = new Audio('sounds/collect_radio2.wav');
+radioSound.volume = globalVolume;
+
+const footstepsSound = new Audio('sounds/grass_footsteps.wav');
+footstepsSound.loop = true; // contínuo enquanto anda
+footstepsSound.volume = globalVolume * 0.7;
+footstepsSound.playbackRate = 1.3; // 👈 Acelerado
+
+const lowBatterySound = new Audio('sounds/low_battery.m4a');
+lowBatterySound.volume = globalVolume;
 
 // 🎚️ Controle de volume
 document.getElementById("volume-slider").addEventListener("input", (e) => {
   globalVolume = e.target.value / 100;
-  ambientSound.volume = globalVolume;
+  ambientSound.volume = globalVolume * 0.25;
+  batterySound.volume = globalVolume;
+  radioSound.volume = globalVolume;
+  footstepsSound.volume = globalVolume * 0.7;
+  lowBatterySound.volume = globalVolume;
 });
 
 
@@ -597,6 +617,8 @@ document.addEventListener("pointerlockchange", () => {
   const isLocked = document.pointerLockElement === document.body;
   if (!isLocked && !gamePaused) {
     gamePaused = true;
+    footstepsSound.pause();
+    footstepsSound.playing = false;
     resetControls();
     document.getElementById("main-menu").style.display = "block";
     clearInterval(batteryInterval);
@@ -681,6 +703,8 @@ function updatePartsHUD() {
 }
 
 function showBatteryPopup(message = "🔋 Bateria Coletada!") {
+  batterySound.currentTime = 0;
+  batterySound.play();
   const popup = document.getElementById("battery-popup");
   popup.textContent = message;
   popup.style.display = "block";
@@ -691,6 +715,8 @@ function showBatteryPopup(message = "🔋 Bateria Coletada!") {
 }
 
 function showSpecialPartPopup(name = "Peça Coletada!") {
+  radioSound.currentTime = 0.3;
+  radioSound.play();
   const popup = document.getElementById("battery-popup");
   popup.textContent = "🎯 " + name + " coletada!";
   popup.style.display = "block";
@@ -720,12 +746,19 @@ function updateBattery() {
   document.getElementById("battery-text").textContent = "Bateria: " + battery + "%";
 
   const warning = document.getElementById("battery-warning");
-  warning.style.display = (battery < 25 && battery > 0) ? "block" : "none";
+  warning.style.display = (battery < BATTERY_LOW_THRESHOLD && battery > 0) ? "block" : "none";
 
-  if (battery >= 25 && flashlightMode !== 2) {
-    updateFlashlightIntensity();
-  } else if (battery < 25 && battery > 0 && flashlightMode !== 2 && !flickerActive) {
+  if (battery < BATTERY_LOW_THRESHOLD && battery > 0 && flashlightMode !== 2 && !flickerActive) {
     startFlicker();
+
+    if (!lowBatterySoundPlayed) {
+      lowBatterySound.currentTime = 3.3;
+      lowBatterySound.play();
+      lowBatterySoundPlayed = true;
+    }
+  } else if (battery >= BATTERY_LOW_THRESHOLD) {
+    // Se a bateria subir de novo, reseta a flag
+    lowBatterySoundPlayed = false;
   }
 
   if (battery === 0) {
@@ -737,7 +770,7 @@ function updateBattery() {
 function startFlicker() {
   flickerActive = true;
   const flickerTime = Math.random() * 2000 + 1000;
-  const flickerIntervalMs = Math.max(50, 500 * (battery / 25));
+  const flickerIntervalMs = Math.max(50, 500 * (battery / BATTERY_LOW_THRESHOLD));
   const flickerChance = (100 - battery) / 100;
 
   const interval = setInterval(() => {
@@ -1000,6 +1033,16 @@ function animate() {
   const isMoving = controls.forward || controls.backward || controls.left || controls.right;
   camera.position.y = isMoving ? 3 + Math.sin(walkTime * 2) * 0.1 : 3;
   walkTime = isMoving ? walkTime + 0.1 : 0;
+
+  // 🎵 Som de passos
+  if (isMoving && !footstepsSound.playing) {
+    footstepsSound.currentTime = 0;
+    footstepsSound.play();
+    footstepsSound.playing = true;
+  } else if (!isMoving && footstepsSound.playing) {
+    footstepsSound.pause();
+    footstepsSound.playing = false;
+  }
 
   flashlight.position.copy(cameraHolder.position.clone().add(new THREE.Vector3(0, 2.2, 0)));
   const direction = new THREE.Vector3();
