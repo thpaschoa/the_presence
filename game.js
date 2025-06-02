@@ -872,9 +872,9 @@ function updateGhostBehavior(delta) {
 
   const vignette = document.getElementById("danger-vignette");
   const minDistance = 5;
-  const visualEffectRange = 30; // efeito visual começa a partir dessa distância
+  const visualEffectRange = 40; // efeito visual começa a partir dessa distância
 
-  if ((config.target === "hybrid" || config.target === "player") && distanceToPlayer <= visualEffectRange) {
+  if (distanceToPlayer <= visualEffectRange) {
     const clampedDist = Math.max(minDistance, Math.min(visualEffectRange, distanceToPlayer));
     let intensity = 1 - (clampedDist - minDistance) / (visualEffectRange - minDistance);
     intensity = Math.pow(intensity, 1.5); // curva mais dramática
