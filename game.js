@@ -27,6 +27,8 @@ let globalVolume = 1;
 let difficultyLevel = 0;
 const BATTERY_LOW_THRESHOLD = 10; // ← Limite de bateria para aviso
 let lowBatterySoundPlayed = false;
+let dangerStartTime = null;
+let gameOverTriggered = false;
 
 // ========== SOM ==========
 const ambientSound = new Audio('sounds/owlandtheharvestmoon.wav');
@@ -797,6 +799,23 @@ function startFlicker() {
   }, flickerTime);
 }
 
+function triggerGameOver() {
+  if (gameOverTriggered) return;
+
+  gameOverTriggered = true;
+  gamePaused = true;
+  footstepsSound.pause();
+  ghostSound.pause();
+  clearInterval(batteryInterval);
+
+  // Mostra tela de Game Over
+  const popup = document.getElementById("game-over-popup");
+  popup.style.display = "block";
+
+  // Sai do pointer lock
+  document.exitPointerLock();
+}
+
 // ========== ANIMAÇÃO ==========
 
 let currentQuadrants = new Set();
@@ -869,6 +888,21 @@ function updateGhostBehavior(delta) {
   let targetPos = null;
 
   const distanceToPlayer = ghostWrapper.position.distanceTo(playerPos);
+
+  const dangerRange = 5;
+  if (distanceToPlayer <= dangerRange) {
+    if (dangerStartTime === null) {
+      dangerStartTime = performance.now(); // inicia contagem
+    } else {
+      const timeInside = performance.now() - dangerStartTime;
+      if (timeInside >= 2000 && !gameOverTriggered) {
+        triggerGameOver();
+        return; // interrompe update se game over
+      }
+    }
+  } else {
+    dangerStartTime = null; // saiu do range → zera o timer
+  }
 
   const vignette = document.getElementById("danger-vignette");
   const minDistance = 5;
@@ -1085,7 +1119,7 @@ function animate() {
       battery = Math.min(100, battery + 25); // Recarrega 25%
       showBatteryPopup(); // ← AQUI É ADICIONADO
       updateHUD();
-      updateGhostWaypoints();
+      //updateGhostWaypoints(); // ← Atualiza os waypoints do fantasma (MAS NÃO É NECESSÁRIO AQUI)
       }
     }
   });
@@ -1314,3 +1348,12 @@ document.addEventListener("keydown", () => {
 });
 
 document.getElementById("minimap").style.display = "block";
+
+window.addEventListener("DOMContentLoaded", () => {
+  const restartBtn = document.getElementById("restart-button");
+  if (restartBtn) {
+    restartBtn.addEventListener("click", () => {
+      window.location.reload();
+    });
+  }
+});

@@ -245,5 +245,34 @@
   </div>
 
   <div id="danger-vignette"></div>  
+
+  <!-- ========== GAME OVER ========== -->
+  <div id="game-over-popup" style="
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.85);
+    color: red;
+    font-size: 32px;
+    padding: 30px 50px;
+    border-radius: 12px;
+    z-index: 999;
+    text-align: center;
+    box-shadow: 0 0 20px red;
+  ">
+    GAME OVER<br>The presence has found you...<br><br>
+    <button id="restart-button" style="
+      margin-top: 20px;
+      font-size: 18px;
+      padding: 10px 20px;
+      background: #222;
+      color: white;
+      border: 2px solid red;
+      border-radius: 8px;
+      cursor: pointer;
+    ">Restart</button>
+  </div>
 </body>
 </html>
