@@ -80,11 +80,20 @@ const CELL_SIZE = 3; // valor padrão = 10
 const QUADRANT_SIZE = 25;
 const MAX_QUAD_INDEX = 19;
 const obstacleGrid = new Map();
+
 function getCellKey(x, z) {
   const cellX = Math.floor(x / CELL_SIZE);
   const cellZ = Math.floor(z / CELL_SIZE);
   return `${cellX},${cellZ}`;
 }
+
+function isInHouseZone(x, z) {
+  const dx = x + 180;
+  const dz = z + 180;
+  return Math.sqrt(dx * dx + dz * dz) < 15;
+}
+
+
 function addObstacle(obj, x, z) {
   const key = getCellKey(x, z);
   if (!obstacleGrid.has(key)) {
@@ -273,8 +282,10 @@ function createForest() {
       const isPath = distanceFromCenter < 12;
 
       if (!isPath && rng() > 0.3) {
-      const posX = x + rng() * 0.5;
-      const posZ = z + rng() * 0.5;
+        const posX = x + rng() * 0.5;
+        const posZ = z + rng() * 0.5;
+
+        if (isInHouseZone(posX, posZ)) continue;
 
       // Verifica se está longe o suficiente de cada peça especial
       let tooCloseToPart = specialItemPositions.some(p => {
@@ -327,6 +338,7 @@ function distributeBatteries(probability = 0.1) {
         const offsetZ = (Math.random() - 0.5) * QUADRANT_SIZE;
         const posX = centerX + offsetX;
         const posZ = centerZ + offsetZ;
+        if (isInHouseZone(posX, posZ)) continue;
 
         let isTooCloseToTree = false;
         for (const tree of trees) {
@@ -376,6 +388,7 @@ function distributeSpecialParts(onFinish) {
     while (!placed) {
       const posX = Math.random() * (region.xMax - region.xMin) + region.xMin;
       const posZ = Math.random() * (region.zMax - region.zMin) + region.zMin;
+      if (isInHouseZone(posX, posZ)) continue; // evita a casa
 
       // Garante distância entre peças já colocadas
       const tooCloseToOtherPart = specialItemPositions.some(p => {
@@ -456,6 +469,33 @@ function loadBatteryModel(x, z) {
     console.error('Erro ao carregar o modelo de bateria:', error);
   });
 }
+
+function loadOldHouse(x, z) {
+  gltfLoader.load('models/old_house.glb', (gltf) => {
+    const house = gltf.scene;
+    house.scale.set(2, 2, 2); // ajuste de tamanho
+    house.position.set(x, 0, z);
+
+    house.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.material = new THREE.MeshStandardMaterial({
+          map: child.material.map || null,
+          color: child.material.color || new THREE.Color(0xffffff),
+          metalness: 0.2,
+          roughness: 0.8
+        });
+      }
+    });
+
+    scene.add(house);
+    addObstacle(house, x, z); // para colisão
+  }, undefined, (error) => {
+    console.error('Erro ao carregar old_house.glb:', error);
+  });
+}
+
 
 function loadSpecialPart(modelPath, name, x, z, onLoadComplete) {
   gltfLoader.load(modelPath, (gltf) => {
@@ -567,6 +607,9 @@ function loadEntityModel(path, offsetX = 0) {
 }
 
 createBorderFences();
+loadOldHouse(-180, -180); // ← casa no canto sudoeste
+specialItemPositions.push({ x: -180, z: -180 }); // ← evita árvores em cima da casa
+
 distributeSpecialParts(() => {
   createForest();
   distributeBatteries();
