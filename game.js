@@ -831,31 +831,17 @@ function checkVictoryConditionLoop() {
     }
 }
 
-
 function triggerVictory() {
   if (gameOverTriggered) return;
 
-    const ghostObj = ghostWrapper ?? ghost;
-  if (!ghostObj || !ghostObj.position) {
-    console.log("Ghost not ready, skipping victory.");
-    return;
-  }
+  const ghostObj = ghostWrapper;
+  if (!ghostObj || !ghostObj.position) return;
 
   const playerPos = cameraHolder.position.clone();
   const ghostPos = ghostObj.position.clone();
   const dist = playerPos.distanceTo(ghostPos);
 
-  console.log(`Distance to ghost: ${dist.toFixed(2)}`);
-
-  if (dist < 30) {
-    console.log("Ghost too close — cannot trigger victory.");
-    return;
-  }
-
-  // Evita final se ghost estiver muito perto
-  if (ghostPos && playerPos.distanceTo(ghostPos) < 30) {
-    return;
-  }
+  if (dist < 30) return;
 
   clearInterval(batteryInterval);
   footstepsSound.pause();
@@ -878,9 +864,17 @@ function triggerVictory() {
       document.getElementById("ending-image").style.display = "block";
       endingSound1.play();
       setTimeout(() => endingSound2.play(), 1000);
+
+      // ⏱️ Parar os sons após 10s
+      setTimeout(() => {
+        endingSound1.pause();
+        endingSound1.currentTime = 0;
+        endingSound2.pause();
+        endingSound2.currentTime = 0;
+      }, 20000);
     }, 3000);
 
-    // 4. Espera +5s após imagem (9s total) para mostrar mensagem
+    // 4. Espera +5s após imagem (9s total) para mostrar mensagem e botão
     setTimeout(() => {
       const popup = document.getElementById("ending-popup");
       popup.style.display = "block";
@@ -890,6 +884,12 @@ function triggerVictory() {
         30
       );
       document.exitPointerLock();
+
+      const playAgainBtn = document.getElementById("play-again-button");
+      playAgainBtn.style.display = "inline-block";
+      playAgainBtn.onclick = () => {
+        window.location.reload();
+      };
     }, 8000);
   }, 2000);
 }
@@ -1299,7 +1299,7 @@ function animate() {
   camera.getWorldDirection(cameraDirection);
 
   const dot = toBattery.dot(cameraDirection);
-  if (dot > 0.75) { // ângulo dentro do campo de visão (~41°)
+  if (dot > 0.7) { // ângulo dentro do campo de visão
     battery.userData.seen = true;
     }
   });
@@ -1475,6 +1475,14 @@ function hideNoteAndStart() {
 
     // 👻 Carregar entidade aqui
     loadEntityModel('models/ghost_daughter.glb', 0);
+
+    // Mostrar aviso de início
+    const startWarning = document.getElementById("start-warning");
+    startWarning.style.display = "block";
+    setTimeout(() => {
+      startWarning.style.display = "none";
+    }, 4000); // esconde após 4 segundos
+
   }
 }
 
