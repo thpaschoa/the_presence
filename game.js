@@ -47,6 +47,10 @@ footstepsSound.playbackRate = 1.3; // 👈 Acelerado
 const lowBatterySound = new Audio('sounds/low_battery.m4a');
 lowBatterySound.volume = globalVolume;
 
+const ghostSound = new Audio('sounds/ghost.wav');
+ghostSound.loop = true;
+ghostSound.volume = 0; // começa sem som
+
 // 🎚️ Controle de volume
 document.getElementById("volume-slider").addEventListener("input", (e) => {
   globalVolume = e.target.value / 100;
@@ -55,6 +59,7 @@ document.getElementById("volume-slider").addEventListener("input", (e) => {
   radioSound.volume = globalVolume;
   footstepsSound.volume = globalVolume * 0.7;
   lowBatterySound.volume = globalVolume;
+  ghostSound.volume = 0; // Fantasma começa sem som
 });
 
 
@@ -459,7 +464,7 @@ function loadSpecialPart(modelPath, name, x, z, onLoadComplete) {
         child.material = new THREE.MeshStandardMaterial({
           color: 0xffffff,
           emissive: new THREE.Color(0x00ff66),
-          emissiveIntensity: 0.3,
+          emissiveIntensity: 0.15,
           metalness: 0.1,
           roughness: 0.7
         });
@@ -622,6 +627,10 @@ document.addEventListener("pointerlockchange", () => {
     resetControls();
     document.getElementById("main-menu").style.display = "block";
     clearInterval(batteryInterval);
+  }
+  if (!ghostSound.paused) {
+    ghostSound.pause();
+    ghostSound.currentTime = 0;
   }
 });
 
@@ -868,11 +877,27 @@ function updateGhostBehavior(delta) {
   if ((config.target === "hybrid" || config.target === "player") && distanceToPlayer <= visualEffectRange) {
     const clampedDist = Math.max(minDistance, Math.min(visualEffectRange, distanceToPlayer));
     let intensity = 1 - (clampedDist - minDistance) / (visualEffectRange - minDistance);
-    intensity = Math.pow(intensity, 1.5); // curva suave
+    intensity = Math.pow(intensity, 1.5); // curva mais dramática
 
     vignette.style.opacity = intensity.toFixed(2);
+
+    // 🎧 Controle de volume com distância + volume global
+    const targetVolume = globalVolume * 0.8 * intensity;
+    ghostSound.volume = targetVolume;
+
+    if (ghostSound.paused) {
+      ghostSound.currentTime = 0;
+      ghostSound.play();
+    }
+
   } else {
     vignette.style.opacity = "0";
+
+    if (!ghostSound.paused) {
+      ghostSound.pause();
+    }
+
+    ghostSound.volume = 0;
   }
 
   // 🎯 Escolha do destino com base no nível
