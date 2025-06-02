@@ -29,6 +29,8 @@ const BATTERY_LOW_THRESHOLD = 10; // ← Limite de bateria para aviso
 let lowBatterySoundPlayed = false;
 let dangerStartTime = null;
 let gameOverTriggered = false;
+let waitingForSafeDistance = false;
+
 
 // ========== SOM ==========
 const ambientSound = new Audio('sounds/owlandtheharvestmoon.wav');
@@ -36,10 +38,10 @@ ambientSound.loop = true;
 ambientSound.volume = globalVolume * 0.25;
 
 const batterySound = new Audio('sounds/collect_battery.wav');
-batterySound.volume = globalVolume;
+batterySound.volume = globalVolume * 0.5;
 
 const radioSound = new Audio('sounds/collect_radio2.wav');
-radioSound.volume = globalVolume;
+radioSound.volume = globalVolume * 0.5;
 
 const footstepsSound = new Audio('sounds/grass_footsteps.wav');
 footstepsSound.loop = true; // contínuo enquanto anda
@@ -47,21 +49,29 @@ footstepsSound.volume = globalVolume * 0.7;
 footstepsSound.playbackRate = 1.3; // 👈 Acelerado
 
 const lowBatterySound = new Audio('sounds/low_battery.m4a');
-lowBatterySound.volume = globalVolume;
+lowBatterySound.volume = globalVolume * 0.5;
 
 const ghostSound = new Audio('sounds/ghost.wav');
 ghostSound.loop = true;
 ghostSound.volume = 0; // começa sem som
 
+const endingSound1 = new Audio('sounds/sos.wav');
+const endingSound2 = new Audio('sounds/voices.wav');
+// ajuste o volume se quiser
+endingSound1.volume = globalVolume * 0.1;
+endingSound2.volume = globalVolume * 0.25;
+
 // 🎚️ Controle de volume
 document.getElementById("volume-slider").addEventListener("input", (e) => {
   globalVolume = e.target.value / 100;
   ambientSound.volume = globalVolume * 0.25;
-  batterySound.volume = globalVolume;
-  radioSound.volume = globalVolume;
+  batterySound.volume = globalVolume * 0.5;
+  radioSound.volume = globalVolume * 0.5;
   footstepsSound.volume = globalVolume * 0.7;
-  lowBatterySound.volume = globalVolume;
+  lowBatterySound.volume = globalVolume * 0.5;
   ghostSound.volume = 0; // Fantasma começa sem som
+  endingSound1.volume = globalVolume * 0.1;
+  endingSound2.volume = globalVolume * 0.25;
 });
 
 
@@ -595,6 +605,11 @@ document.addEventListener('keydown', (e) => {
     const minimap = document.getElementById("minimap");
     minimap.style.display = minimap.style.display === "none" ? "block" : "none";
   }
+
+  if (e.code === 'KeyJ') {
+    triggerVictory();
+  }
+
 });
 
 document.addEventListener('keyup', (e) => {
@@ -677,7 +692,7 @@ function toggleDayNight(manual = false) {
 
   if (manual) {
     clearInterval(autoCycleInterval);
-    startAutoCycle();
+    //startAutoCycle();
   }
 }
 
@@ -799,6 +814,114 @@ function startFlicker() {
   }, flickerTime);
 }
 
+function checkVictoryConditionLoop() {
+  if (!waitingForSafeDistance) return;
+
+  const ghostObj = ghostWrapper ?? ghost;
+  if (!ghostObj || !ghostObj.position) return;
+
+  const dist = cameraHolder.position.distanceTo(ghostObj.position);
+
+  if (dist < 30) {
+      showTooCloseWarning();
+    } else {
+      hideTooCloseWarning();
+      waitingForSafeDistance = false;
+      triggerVictory();
+    }
+}
+
+
+function triggerVictory() {
+  if (gameOverTriggered) return;
+
+    const ghostObj = ghostWrapper ?? ghost;
+  if (!ghostObj || !ghostObj.position) {
+    console.log("Ghost not ready, skipping victory.");
+    return;
+  }
+
+  const playerPos = cameraHolder.position.clone();
+  const ghostPos = ghostObj.position.clone();
+  const dist = playerPos.distanceTo(ghostPos);
+
+  console.log(`Distance to ghost: ${dist.toFixed(2)}`);
+
+  if (dist < 30) {
+    console.log("Ghost too close — cannot trigger victory.");
+    return;
+  }
+
+  // Evita final se ghost estiver muito perto
+  if (ghostPos && playerPos.distanceTo(ghostPos) < 30) {
+    return;
+  }
+
+  clearInterval(batteryInterval);
+  footstepsSound.pause();
+  ghostSound.pause();
+  ambientSound.pause();
+
+  // 1. Desliga a lanterna
+  flashlightMode = 2;
+  updateFlashlightIntensity();
+
+  // 2. Espera 2s antes de iniciar o dia
+  setTimeout(() => {
+    if (!isDay) {
+      toggleDayNight(true);
+    }
+
+    // 3. Espera +2s para imagem e sons (4s desde início)
+    setTimeout(() => {
+      gamePaused = true;
+      document.getElementById("ending-image").style.display = "block";
+      endingSound1.play();
+      setTimeout(() => endingSound2.play(), 1000);
+    }, 3000);
+
+    // 4. Espera +5s após imagem (9s total) para mostrar mensagem
+    setTimeout(() => {
+      const popup = document.getElementById("ending-popup");
+      popup.style.display = "block";
+      typeText(
+        "Communication with the outside world has been established.\nYou are finally free.",
+        "typing-text",
+        30
+      );
+      document.exitPointerLock();
+    }, 8000);
+  }, 2000);
+}
+
+function showTooCloseWarning(duration = 3000) {
+  const warning = document.getElementById("tooCloseWarning");
+  warning.style.display = "block";
+}
+
+function hideTooCloseWarning() {
+  const warning = document.getElementById("tooCloseWarning");
+  warning.style.display = "none";
+}
+
+
+function typeText(text, elementId, delay = 30) {
+  const element = document.getElementById(elementId);
+  element.textContent = "";
+  let i = 0;
+
+  function type() {
+    if (i < text.length) {
+      element.textContent += text.charAt(i);
+      i++;
+      setTimeout(type, delay);
+    }
+  }
+
+  type();
+}
+
+
 function triggerGameOver() {
   if (gameOverTriggered) return;
 
@@ -906,7 +1029,7 @@ function updateGhostBehavior(delta) {
 
   const vignette = document.getElementById("danger-vignette");
   const minDistance = 5;
-  const visualEffectRange = 40; // efeito visual começa a partir dessa distância
+  const visualEffectRange = 30; // efeito visual começa a partir dessa distância
 
   if (distanceToPlayer <= visualEffectRange) {
     const clampedDist = Math.max(minDistance, Math.min(visualEffectRange, distanceToPlayer));
@@ -990,6 +1113,8 @@ function animate() {
   pauseAnimationFrame = requestAnimationFrame(animate);
 
   updateVisibleChunks(); // ← ESSA LINHA É ESSENCIAL
+
+  checkVictoryConditionLoop();
 
   const delta = clock.getDelta();
   if (ghostMixer) ghostMixer.update(delta);
@@ -1133,6 +1258,19 @@ function animate() {
       difficultyLevel = Math.min(specialItems.filter(p => p.userData.collected).length, 5);
       showSpecialPartPopup(obj.userData.name);
       updatePartsHUD();
+      const collectedCount = specialItems.filter(p => p.userData.collected).length;
+      if (collectedCount === specialParts.length) {
+        const ghostObj = ghostWrapper ?? ghost;
+        if (!ghostObj || !ghostObj.position) return;
+
+        const dist = cameraHolder.position.distanceTo(ghostObj.position);
+        if (dist < 30) {
+          waitingForSafeDistance = true;
+          showTooCloseWarning();
+        } else {
+          triggerVictory();
+          }
+        }
       }
     }
   });
