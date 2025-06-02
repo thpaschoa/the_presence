@@ -828,16 +828,41 @@ function updateGhostBehavior(delta) {
 
   const distanceToPlayer = ghostWrapper.position.distanceTo(playerPos);
 
+  const vignette = document.getElementById("danger-vignette");
+  const minDistance = 5;
+  const visualEffectRange = 30; // efeito visual começa a partir dessa distância
+
+  if ((config.target === "hybrid" || config.target === "player") && distanceToPlayer <= visualEffectRange) {
+    const clampedDist = Math.max(minDistance, Math.min(visualEffectRange, distanceToPlayer));
+    let intensity = 1 - (clampedDist - minDistance) / (visualEffectRange - minDistance);
+    intensity = Math.pow(intensity, 1.5); // curva suave
+
+    vignette.style.opacity = intensity.toFixed(2);
+  } else {
+    vignette.style.opacity = "0";
+  }
+
   // 🎯 Escolha do destino com base no nível
   if (config.target === "player") {
     targetPos = playerPos;
+    ghostWrapper.userData.ghostSpeed = config.speed;
   } else if (config.target === "hybrid") {
-    if (distanceToPlayer <= config.detectRange) {
+    const chasing = distanceToPlayer <= config.detectRange;
+
+    if (chasing) {
+      // Jogador detectado → perseguir
       targetPos = playerPos;
-    } else if (ghostWaypoints.length > 0) {
-      targetPos = ghostWaypoints[ghostTargetIndex];
-      if (ghostWrapper.position.distanceTo(targetPos) < 2) {
-        ghostTargetIndex = (ghostTargetIndex + 1) % ghostWaypoints.length;
+      ghostWrapper.userData.ghostMode = "chasing";
+      ghostWrapper.userData.ghostSpeed = 0.002;
+    } else {
+      // Jogador fora do alcance → voltar a patrulhar
+      ghostWrapper.userData.ghostMode = "patrolling";
+      if (ghostWaypoints.length > 0) {
+        targetPos = ghostWaypoints[ghostTargetIndex];
+        ghostWrapper.userData.ghostSpeed = 0.01 + difficultyLevel * 0.005;
+        if (ghostWrapper.position.distanceTo(targetPos) < 2) {
+          ghostTargetIndex = (ghostTargetIndex + 1) % ghostWaypoints.length;
+        }
       }
     }
   } else if (ghostWaypoints.length > 0) {
@@ -849,7 +874,7 @@ function updateGhostBehavior(delta) {
 
   // Movimento em direção ao destino
   if (targetPos) {
-    const moveSpeed = config.speed;
+    const moveSpeed = ghostWrapper.userData.ghostSpeed || config.speed;
     const newPos = ghostWrapper.position.clone().lerp(targetPos, moveSpeed);
     newPos.y = 1;
     ghostWrapper.position.copy(newPos);
