@@ -75,7 +75,7 @@ document.getElementById("volume-slider").addEventListener("input", (e) => {
 });
 
 
-// [GRID] Colisão otimizada
+// ========== GRID ==========
 const CELL_SIZE = 3; // valor padrão = 10
 const QUADRANT_SIZE = 25;
 const MAX_QUAD_INDEX = 19;
